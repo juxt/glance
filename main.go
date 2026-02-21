@@ -39,7 +39,7 @@ func main() {
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return
-	case "help":
+	case "help", "--help", "-h":
 		doHelp(args[1:])
 	case "show":
 		doShow(args[1:])
