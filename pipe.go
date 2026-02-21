@@ -156,6 +156,52 @@ func runPipe(cfg pipeConfig) {
 	}
 }
 
+// ringEntry holds a buffered line for the tail window.
+type ringEntry struct {
+	num     int
+	text    string
+	matched bool
+}
+
+// ringBuffer is a fixed-size circular buffer for tail lines.
+type ringBuffer struct {
+	buf  []ringEntry
+	pos  int
+	full bool
+}
+
+func newRingBuffer(n int) *ringBuffer {
+	return &ringBuffer{buf: make([]ringEntry, n)}
+}
+
+// push adds an entry, returning the evicted entry (if any).
+func (r *ringBuffer) push(num int, text string, matched bool) (ringEntry, bool) {
+	var evicted ringEntry
+	var didEvict bool
+	if r.full {
+		evicted = r.buf[r.pos]
+		didEvict = true
+	}
+	r.buf[r.pos] = ringEntry{num: num, text: text, matched: matched}
+	r.pos++
+	if r.pos == len(r.buf) {
+		r.pos = 0
+		r.full = true
+	}
+	return evicted, didEvict
+}
+
+// entries returns all buffered entries in insertion order.
+func (r *ringBuffer) entries() []ringEntry {
+	if !r.full {
+		return r.buf[:r.pos]
+	}
+	out := make([]ringEntry, len(r.buf))
+	copy(out, r.buf[r.pos:])
+	copy(out[len(r.buf)-r.pos:], r.buf[:r.pos])
+	return out
+}
+
 func joinFilters(filters []string) string {
 	if len(filters) == 0 {
 		return ""

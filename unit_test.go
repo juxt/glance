@@ -224,6 +224,101 @@ func TestParseShowArgsErrors(t *testing.T) {
 	}
 }
 
+func TestRingBuffer(t *testing.T) {
+	t.Run("under capacity", func(t *testing.T) {
+		r := newRingBuffer(5)
+		r.push(1, "a", false)
+		r.push(2, "b", true)
+		r.push(3, "c", false)
+		got := r.entries()
+		if len(got) != 3 {
+			t.Fatalf("len = %d, want 3", len(got))
+		}
+		if got[0].num != 1 || got[1].num != 2 || got[2].num != 3 {
+			t.Errorf("entries = %v", got)
+		}
+	})
+
+	t.Run("exact capacity", func(t *testing.T) {
+		r := newRingBuffer(3)
+		r.push(1, "a", false)
+		r.push(2, "b", false)
+		r.push(3, "c", false)
+		got := r.entries()
+		if len(got) != 3 {
+			t.Fatalf("len = %d, want 3", len(got))
+		}
+		if got[0].num != 1 || got[2].num != 3 {
+			t.Errorf("entries = %v", got)
+		}
+	})
+
+	t.Run("eviction", func(t *testing.T) {
+		r := newRingBuffer(3)
+		r.push(1, "a", false)
+		r.push(2, "b", true)
+		r.push(3, "c", false)
+		evicted, ok := r.push(4, "d", false)
+		if !ok {
+			t.Fatal("expected eviction")
+		}
+		if evicted.num != 1 || evicted.text != "a" {
+			t.Errorf("evicted = %+v, want {1 a false}", evicted)
+		}
+		got := r.entries()
+		if len(got) != 3 {
+			t.Fatalf("len = %d, want 3", len(got))
+		}
+		if got[0].num != 2 || got[1].num != 3 || got[2].num != 4 {
+			t.Errorf("entries = %v", got)
+		}
+	})
+
+	t.Run("wrap around twice", func(t *testing.T) {
+		r := newRingBuffer(2)
+		r.push(1, "a", false)
+		r.push(2, "b", false)
+		r.push(3, "c", false)
+		r.push(4, "d", false)
+		r.push(5, "e", false)
+		got := r.entries()
+		if len(got) != 2 {
+			t.Fatalf("len = %d, want 2", len(got))
+		}
+		if got[0].num != 4 || got[1].num != 5 {
+			t.Errorf("entries = %v", got)
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		r := newRingBuffer(5)
+		got := r.entries()
+		if len(got) != 0 {
+			t.Errorf("empty ring: len = %d", len(got))
+		}
+	})
+
+	t.Run("no eviction before full", func(t *testing.T) {
+		r := newRingBuffer(3)
+		_, ok := r.push(1, "a", false)
+		if ok {
+			t.Error("should not evict before full")
+		}
+		_, ok = r.push(2, "b", false)
+		if ok {
+			t.Error("should not evict before full")
+		}
+		_, ok = r.push(3, "c", false)
+		if ok {
+			t.Error("should not evict at exact capacity")
+		}
+		_, ok = r.push(4, "d", false)
+		if !ok {
+			t.Error("should evict after full")
+		}
+	})
+}
+
 func TestParsePositiveInt(t *testing.T) {
 	tests := []struct {
 		s    string
