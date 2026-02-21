@@ -234,26 +234,25 @@ func TestRingBuffer(t *testing.T) {
 		if len(got) != 3 {
 			t.Fatalf("len = %d, want 3", len(got))
 		}
-		if got[0].num != 1 || got[1].num != 2 || got[2].num != 3 {
-			t.Errorf("entries = %v", got)
+		want := []ringEntry{{1, "a", false}, {2, "b", true}, {3, "c", false}}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("entries = %v, want %v", got, want)
 		}
 	})
 
 	t.Run("exact capacity", func(t *testing.T) {
 		r := newRingBuffer(3)
 		r.push(1, "a", false)
-		r.push(2, "b", false)
+		r.push(2, "b", true)
 		r.push(3, "c", false)
 		got := r.entries()
-		if len(got) != 3 {
-			t.Fatalf("len = %d, want 3", len(got))
-		}
-		if got[0].num != 1 || got[2].num != 3 {
-			t.Errorf("entries = %v", got)
+		want := []ringEntry{{1, "a", false}, {2, "b", true}, {3, "c", false}}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("entries = %v, want %v", got, want)
 		}
 	})
 
-	t.Run("eviction", func(t *testing.T) {
+	t.Run("evict unmatched", func(t *testing.T) {
 		r := newRingBuffer(3)
 		r.push(1, "a", false)
 		r.push(2, "b", true)
@@ -262,31 +261,43 @@ func TestRingBuffer(t *testing.T) {
 		if !ok {
 			t.Fatal("expected eviction")
 		}
-		if evicted.num != 1 || evicted.text != "a" {
+		if evicted != (ringEntry{1, "a", false}) {
 			t.Errorf("evicted = %+v, want {1 a false}", evicted)
 		}
 		got := r.entries()
-		if len(got) != 3 {
-			t.Fatalf("len = %d, want 3", len(got))
+		want := []ringEntry{{2, "b", true}, {3, "c", false}, {4, "d", false}}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("entries = %v, want %v", got, want)
 		}
-		if got[0].num != 2 || got[1].num != 3 || got[2].num != 4 {
-			t.Errorf("entries = %v", got)
+	})
+
+	t.Run("evict matched", func(t *testing.T) {
+		r := newRingBuffer(2)
+		r.push(1, "ERROR", true)
+		r.push(2, "ok", false)
+		evicted, ok := r.push(3, "new", false)
+		if !ok {
+			t.Fatal("expected eviction")
+		}
+		if !evicted.matched {
+			t.Errorf("evicted.matched = false, want true")
+		}
+		if evicted != (ringEntry{1, "ERROR", true}) {
+			t.Errorf("evicted = %+v, want {1 ERROR true}", evicted)
 		}
 	})
 
 	t.Run("wrap around twice", func(t *testing.T) {
 		r := newRingBuffer(2)
-		r.push(1, "a", false)
+		r.push(1, "a", true)
 		r.push(2, "b", false)
 		r.push(3, "c", false)
-		r.push(4, "d", false)
+		r.push(4, "d", true)
 		r.push(5, "e", false)
 		got := r.entries()
-		if len(got) != 2 {
-			t.Fatalf("len = %d, want 2", len(got))
-		}
-		if got[0].num != 4 || got[1].num != 5 {
-			t.Errorf("entries = %v", got)
+		want := []ringEntry{{4, "d", true}, {5, "e", false}}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("entries = %v, want %v", got, want)
 		}
 	})
 
