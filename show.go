@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 )
@@ -126,16 +125,11 @@ func runShow(cfg showConfig) {
 		}
 	}
 
-	// Compile regex
-	pattern := joinFilters(cfg.filters)
-	var re *regexp.Regexp
-	if pattern != "" {
-		var err error
-		re, err = regexp.Compile(pattern)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "glance: invalid regex %s: %s\n", pattern, err)
-			os.Exit(1)
-		}
+	// Compile filters
+	filters, err := compileFilters(cfg.filters)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "glance: %s\n", err)
+		os.Exit(1)
 	}
 
 	// Single-pass scan
@@ -155,8 +149,8 @@ func runShow(cfg showConfig) {
 		lineNo++
 		text := scanner.Text()
 		show := lineNums[lineNo]
-		if !show && re != nil {
-			show = re.MatchString(text)
+		if !show {
+			show = matchesAny(filters, text)
 		}
 		if show {
 			fmt.Fprintf(bw, "%d: %s\n", lineNo, text)

@@ -88,16 +88,11 @@ func runPipe(cfg pipeConfig) {
 		captureW = bufio.NewWriter(captureF)
 	}
 
-	// Compile regex
-	pattern := joinFilters(cfg.filters)
-	var re *regexp.Regexp
-	if pattern != "" {
-		var err error
-		re, err = regexp.Compile(pattern)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "glance: invalid regex %s: %s\n", pattern, err)
-			os.Exit(1)
-		}
+	// Compile filters
+	filters, err := compileFilters(cfg.filters)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "glance: %s\n", err)
+		os.Exit(1)
 	}
 
 	n := cfg.n
@@ -126,7 +121,7 @@ func runPipe(cfg pipeConfig) {
 		}
 
 		// Past head: use ring buffer
-		matched := re != nil && re.MatchString(text)
+		matched := matchesAny(filters, text)
 		evicted, ok := ring.push(lineNo, text, matched)
 		if ok && evicted.matched {
 			// Evicted middle match: print it
@@ -219,11 +214,25 @@ func (r *ringBuffer) entries() []ringEntry {
 	return out
 }
 
-func joinFilters(filters []string) string {
-	if len(filters) == 0 {
-		return ""
+func compileFilters(filters []string) ([]*regexp.Regexp, error) {
+	res := make([]*regexp.Regexp, len(filters))
+	for i, f := range filters {
+		re, err := regexp.Compile(f)
+		if err != nil {
+			return nil, fmt.Errorf("invalid regex %s: %w", f, err)
+		}
+		res[i] = re
 	}
-	return strings.Join(filters, "|")
+	return res, nil
+}
+
+func matchesAny(res []*regexp.Regexp, s string) bool {
+	for _, re := range res {
+		if re.MatchString(s) {
+			return true
+		}
+	}
+	return false
 }
 
 func parsePositiveInt(s string) int {
