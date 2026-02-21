@@ -110,6 +110,9 @@ Usage:
   glance presets remove <name>               Remove user preset
 
 Built-in presets cannot be removed or overridden.
+Use (?i) prefix in regex for case-insensitive matching:
+
+  glance presets add deploys '(?i)deploy|release|rollout' 'Deployment events'
 `)
 			fmt.Printf("User presets are stored in %s\n", configPath())
 			return
@@ -175,6 +178,9 @@ EXAMPLES:
 
   # Drill into a specific capture (use full ID from footer)
   glance show 20260219-143022-a3f8b1c0 -a 247 5
+
+  # Add a case-insensitive user preset
+  glance presets add deploys '(?i)deploy|release|rollout' 'Deployment events'
 
 PATHS:
 `)

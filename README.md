@@ -91,7 +91,11 @@ See `glance help` for complete documentation. Key commands:
 | `glance presets remove <name>` | Remove user preset |
 
 
-Preset names must be alphanumeric (plus hyphens and underscores).
+Preset names must be alphanumeric (plus hyphens and underscores). Use `(?i)` prefix in regex for case-insensitive matching:
+
+```sh
+glance presets add deploys '(?i)deploy|release|rollout' 'Deployment events'
+```
 
 ## Testing
 
