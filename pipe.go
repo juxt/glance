@@ -118,8 +118,6 @@ func runPipe(cfg pipeConfig) {
 			captureW.WriteByte('\n')
 		}
 
-		matched := re != nil && re.MatchString(text)
-
 		if lineNo <= n {
 			// Head: print eagerly
 			fmt.Fprintf(bw, "%d: %s\n", lineNo, text)
@@ -128,6 +126,7 @@ func runPipe(cfg pipeConfig) {
 		}
 
 		// Past head: use ring buffer
+		matched := re != nil && re.MatchString(text)
 		evicted, ok := ring.push(lineNo, text, matched)
 		if ok && evicted.matched {
 			// Evicted middle match: print it
@@ -191,6 +190,9 @@ func newRingBuffer(n int) *ringBuffer {
 
 // push adds an entry, returning the evicted entry (if any).
 func (r *ringBuffer) push(num int, text string, matched bool) (ringEntry, bool) {
+	if len(r.buf) == 0 {
+		return ringEntry{num: num, text: text, matched: matched}, true
+	}
 	var evicted ringEntry
 	var didEvict bool
 	if r.full {

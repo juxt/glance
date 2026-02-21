@@ -309,6 +309,25 @@ func TestRingBuffer(t *testing.T) {
 		}
 	})
 
+	t.Run("size zero", func(t *testing.T) {
+		r := newRingBuffer(0)
+		got := r.entries()
+		if len(got) != 0 {
+			t.Errorf("empty: len = %d", len(got))
+		}
+		evicted, ok := r.push(1, "a", true)
+		if !ok {
+			t.Error("size-0 push should always evict")
+		}
+		if evicted != (ringEntry{1, "a", true}) {
+			t.Errorf("evicted = %+v", evicted)
+		}
+		got = r.entries()
+		if len(got) != 0 {
+			t.Errorf("after push: len = %d, want 0", len(got))
+		}
+	})
+
 	t.Run("no eviction before full", func(t *testing.T) {
 		r := newRingBuffer(3)
 		_, ok := r.push(1, "a", false)
