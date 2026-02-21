@@ -151,7 +151,16 @@ SUBCOMMANDS:
 BUILT-IN PRESETS:
 `)
 	for _, p := range builtinPresets {
-		fmt.Printf("  %-10s %s\n", p.name, p.regex)
+		fmt.Printf("  %-10s %s\n", p.name, p.desc)
+	}
+	userPresets, _ := readUserPresets()
+	if len(userPresets) > 0 {
+		fmt.Print(`
+USER PRESETS:
+`)
+		for _, p := range userPresets {
+			fmt.Printf("  %-10s %s\n", p.name, p.desc)
+		}
 	}
 	fmt.Print(`
 EXAMPLES:

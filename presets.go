@@ -127,14 +127,14 @@ func doPresets(args []string) {
 	case "list":
 		fmt.Println("Built-in presets:")
 		for _, p := range builtinPresets {
-			fmt.Printf("  %-10s  %-50s  %s\n", p.name, p.regex, p.desc)
+			fmt.Printf("  %-10s %-20s %s\n", p.name, p.desc, p.regex)
 		}
 		userPresets, _ := readUserPresets()
 		if len(userPresets) > 0 {
 			fmt.Println()
 			fmt.Println("User presets:")
 			for _, p := range userPresets {
-				fmt.Printf("  %-10s  %-50s  %s\n", p.name, p.regex, p.desc)
+				fmt.Printf("  %-10s %-20s %s\n", p.name, p.desc, p.regex)
 			}
 		}
 
