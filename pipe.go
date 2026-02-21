@@ -5,8 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -69,91 +70,105 @@ func doPipe(args []string) {
 }
 
 func runPipe(cfg pipeConfig) {
-	// Buffer stdin to temp file
-	tmpfile, err := os.CreateTemp("", "glance-*")
-	if err != nil {
-		fatal(err.Error())
-	}
-	defer os.Remove(tmpfile.Name())
-
-	// Copy stdin and count lines
-	total := 0
-	reader := bufio.NewReader(os.Stdin)
-	writer := bufio.NewWriter(tmpfile)
-	for {
-		line, err := reader.ReadBytes('\n')
-		if len(line) > 0 {
-			writer.Write(line)
-			total++
-			// If line doesn't end with \n, it's still a line
-			if len(line) > 0 && line[len(line)-1] != '\n' {
-				writer.WriteByte('\n')
-			}
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			fatal(err.Error())
-		}
-	}
-	writer.Flush()
-	tmpfile.Close()
-
-	// Store capture
-	captureID := ""
+	// Open capture file if storing
+	var captureID string
+	var captureW *bufio.Writer
+	var captureF *os.File
 	if !cfg.noStore {
 		if err := ensureCacheDir(); err != nil {
 			fatal(err.Error())
 		}
 		captureID = genID()
-		copyFile(tmpfile.Name(), capturePath(captureID))
-	}
-
-	// Empty input
-	if total == 0 {
-		if captureID != "" {
-			fmt.Printf("--- glance id=%s | 0 lines | showing 0 ---\n", captureID)
-		} else {
-			fmt.Println("--- glance | 0 lines | showing 0 ---")
+		var err error
+		captureF, err = os.Create(capturePath(captureID))
+		if err != nil {
+			fatal(err.Error())
 		}
-		return
+		defer captureF.Close()
+		captureW = bufio.NewWriter(captureF)
 	}
 
-	// Calculate head/tail
-	n := cfg.n
-	headEnd := n
-	tailStart := total - n + 1
-	if total <= n*2 {
-		headEnd = total
-		tailStart = total + 1
-	}
-
-	lineNums := make(map[int]bool)
-	for j := 1; j <= headEnd; j++ {
-		lineNums[j] = true
-	}
-	if tailStart <= total {
-		for j := tailStart; j <= total; j++ {
-			lineNums[j] = true
-		}
-	}
-
-	// Build filter pattern
+	// Compile regex
 	pattern := joinFilters(cfg.filters)
+	var re *regexp.Regexp
+	if pattern != "" {
+		var err error
+		re, err = regexp.Compile("(?i)" + pattern)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "glance: invalid regex %s: %s\n", pattern, err)
+			os.Exit(1)
+		}
+	}
 
-	// Build footer
-	var footer string
+	n := cfg.n
+	ring := newRingBuffer(n)
+	bw := bufio.NewWriter(os.Stdout)
+	var printed []int
+	lineNo := 0
+
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Buffer(make([]byte, scanBufferSize), scanBufferSize)
+	for scanner.Scan() {
+		lineNo++
+		text := scanner.Text()
+
+		// Write to capture file
+		if captureW != nil {
+			captureW.WriteString(text)
+			captureW.WriteByte('\n')
+		}
+
+		matched := re != nil && re.MatchString(text)
+
+		if lineNo <= n {
+			// Head: print eagerly
+			fmt.Fprintf(bw, "%d: %s\n", lineNo, text)
+			printed = append(printed, lineNo)
+			continue
+		}
+
+		// Past head: use ring buffer
+		evicted, ok := ring.push(lineNo, text, matched)
+		if ok && evicted.matched {
+			// Evicted middle match: print it
+			fmt.Fprintf(bw, "%d: %s\n", evicted.num, evicted.text)
+			printed = append(printed, evicted.num)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		fatal(err.Error())
+	}
+
+	// Flush capture
+	if captureW != nil {
+		captureW.Flush()
+	}
+
+	total := lineNo
+
+	// Print tail from ring buffer
+	for _, e := range ring.entries() {
+		fmt.Fprintf(bw, "%d: %s\n", e.num, e.text)
+		printed = append(printed, e.num)
+	}
+
+	// Footer
+	sort.Ints(printed)
+	sections := sectionRanges(printed)
 	if captureID != "" {
-		footer = fmt.Sprintf("--- glance id=%s | %s", captureID, pluralLines(total))
+		if total == 0 {
+			fmt.Fprintf(bw, "--- glance id=%s | 0 lines | showing 0 ---\n", captureID)
+		} else {
+			fmt.Fprintf(bw, "--- glance id=%s | %s | showing %d | sections: %s ---\n", captureID, pluralLines(total), len(printed), sections)
+		}
 	} else {
-		footer = fmt.Sprintf("--- glance | %s", pluralLines(total))
+		if total == 0 {
+			fmt.Fprintf(bw, "--- glance | 0 lines | showing 0 ---\n")
+		} else {
+			fmt.Fprintf(bw, "--- glance | %s | showing %d | sections: %s ---\n", pluralLines(total), len(printed), sections)
+		}
 	}
-
-	if err := printMatchedLines(os.Stdout, tmpfile.Name(), lineNums, pattern, footer); err != nil {
-		fmt.Fprintf(os.Stderr, "glance: %s\n", err)
-		os.Exit(1)
-	}
+	bw.Flush()
 }
 
 // ringEntry holds a buffered line for the tail window.
@@ -215,20 +230,4 @@ func parsePositiveInt(s string) int {
 		return 0
 	}
 	return n
-}
-
-func copyFile(src, dst string) {
-	in, err := os.Open(src)
-	if err != nil {
-		fatal(err.Error())
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		fatal(err.Error())
-	}
-	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
-		fatal(err.Error())
-	}
 }
