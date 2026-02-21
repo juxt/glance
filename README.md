@@ -9,11 +9,11 @@ LLMs read every token of command output with equal attention, unlike humans who 
 ## Install
 
 ```sh
-# Run without installing
-uvx glancecli
-
-# Install permanently
+# Install permanently (puts `glance` on PATH)
 uv tool install glancecli
+
+# One-shot without installing
+uvx --from glancecli glance
 
 # Or with Go
 go install github.com/akeboshiwind/glance@latest
