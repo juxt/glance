@@ -50,6 +50,9 @@ func doShow(args []string) {
 
 	i := 0
 	for i < len(args) {
+		if parseFilter(args, &i, &filters) {
+			continue
+		}
 		switch args[i] {
 		case "-l", "--lines":
 			if i+1 >= len(args) {
@@ -67,25 +70,6 @@ func doShow(args []string) {
 			for j := start; j <= end; j++ {
 				lineNums[j] = true
 			}
-			i += 2
-		case "-f", "--filter":
-			if i+1 >= len(args) {
-				fmt.Fprintf(os.Stderr, "glance show: -f requires a value\n")
-				os.Exit(1)
-			}
-			filters = append(filters, args[i+1])
-			i += 2
-		case "-p", "--preset":
-			if i+1 >= len(args) {
-				fmt.Fprintf(os.Stderr, "glance show: -p requires a value\n")
-				os.Exit(1)
-			}
-			regex, err := resolvePreset(args[i+1])
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			filters = append(filters, regex)
 			i += 2
 		case "-a", "--around":
 			if i+1 >= len(args) {

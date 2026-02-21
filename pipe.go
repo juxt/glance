@@ -28,6 +28,9 @@ func doPipe(args []string) {
 
 	i := 0
 	for i < len(args) {
+		if parseFilter(args, &i, &filters) {
+			continue
+		}
 		switch args[i] {
 		case "-n", "--lines", "--head":
 			if i+1 >= len(args) {
@@ -40,25 +43,6 @@ func doPipe(args []string) {
 				os.Exit(1)
 			}
 			n = v
-			i += 2
-		case "-f", "--filter":
-			if i+1 >= len(args) {
-				fmt.Fprintf(os.Stderr, "glance: -f requires a value\n")
-				os.Exit(1)
-			}
-			filters = append(filters, args[i+1])
-			i += 2
-		case "-p", "--preset":
-			if i+1 >= len(args) {
-				fmt.Fprintf(os.Stderr, "glance: -p requires a value\n")
-				os.Exit(1)
-			}
-			regex, err := resolvePreset(args[i+1])
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			filters = append(filters, regex)
 			i += 2
 		case "--no-store":
 			noStore = true
