@@ -1,0 +1,12 @@
+{
+  "name": "glance-marketplace",
+  "owner": { "name": "akeboshiwind" },
+  "metadata": { "description": "glance plugin marketplace", "version": "1.0.0" },
+  "plugins": [
+    {
+      "name": "glance",
+      "description": "Pipe long command output through glance for token-efficient summaries",
+      "source": "./"
+    }
+  ]
+}

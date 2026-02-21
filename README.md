@@ -19,6 +19,12 @@ uvx --from glancecli glance
 go install github.com/akeboshiwind/glance@latest
 ```
 
+Claude Code plugin:
+```
+/plugin marketplace add akeboshiwind/glance
+/plugin install glance
+```
+
 ## What it does
 
 ```
