@@ -64,6 +64,8 @@ func sectionRanges(nums []int) string {
 
 // printMatchedLines prints lines from file whose numbers are in lineNums set
 // or that match pattern (case-insensitive). If footer is non-empty, appends summary.
+const scanBufferSize = 1024 * 1024
+
 func printMatchedLines(w io.Writer, filePath string, lineNums map[int]bool, pattern string, footer string) error {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -74,7 +76,7 @@ func printMatchedLines(w io.Writer, filePath string, lineNums map[int]bool, patt
 	// Count total lines
 	total := 0
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	scanner.Buffer(make([]byte, scanBufferSize), scanBufferSize)
 	for scanner.Scan() {
 		total++
 	}
@@ -99,7 +101,7 @@ func printMatchedLines(w io.Writer, filePath string, lineNums map[int]bool, patt
 	// Second pass: print matching lines
 	f.Seek(0, 0)
 	scanner = bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	scanner.Buffer(make([]byte, scanBufferSize), scanBufferSize)
 	lineNo := 0
 	var matched []int
 	bw := bufio.NewWriter(w)

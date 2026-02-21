@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const defaultAroundContext = 5
+
 func doShow(args []string) {
 	if len(args) < 1 {
 		fmt.Fprintf(os.Stderr, "Usage: glance show <id> [--lines N-M] [--filter regex] [--around N C]\n")
@@ -95,7 +97,7 @@ func doShow(args []string) {
 				fmt.Fprintf(os.Stderr, "glance show: --around center must be a positive integer\n")
 				os.Exit(1)
 			}
-			ctx := 5 // default context
+			ctx := defaultAroundContext
 			if i+2 < len(args) && args[i+2] != "" && args[i+2][0] != '-' {
 				ctx = parsePositiveInt(args[i+2])
 				if ctx <= 0 {

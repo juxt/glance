@@ -19,8 +19,10 @@ func genID() string {
 	return ts + "-" + hex.EncodeToString(b)
 }
 
+const defaultHeadTail = 10
+
 func doPipe(args []string) {
-	n := 10
+	n := defaultHeadTail
 	var filters []string
 	noStore := false
 
