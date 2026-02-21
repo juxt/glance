@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -156,18 +157,7 @@ func joinFilters(filters []string) string {
 	if len(filters) == 0 {
 		return ""
 	}
-	return joinStrings(filters, "|")
-}
-
-func joinStrings(ss []string, sep string) string {
-	result := ""
-	for i, s := range ss {
-		if i > 0 {
-			result += sep
-		}
-		result += s
-	}
-	return result
+	return strings.Join(filters, "|")
 }
 
 func parsePositiveInt(s string) int {
