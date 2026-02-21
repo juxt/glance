@@ -46,3 +46,25 @@ func doList() {
 		fmt.Println("No stored captures.")
 	}
 }
+
+func countLines(path string) int {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	count := 0
+	buf := make([]byte, 32*1024)
+	for {
+		n, err := f.Read(buf)
+		for i := 0; i < n; i++ {
+			if buf[i] == '\n' {
+				count++
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	return count
+}

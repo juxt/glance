@@ -1,12 +1,7 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"io"
-	"os"
-	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -62,50 +57,4 @@ func sectionRanges(nums []int) string {
 	return strings.Join(parts, ", ")
 }
 
-// printMatchedLines prints lines from file whose numbers are in lineNums set
-// or that match pattern (case-insensitive). If footer is non-empty, appends summary.
 const scanBufferSize = 1024 * 1024
-
-func printMatchedLines(w io.Writer, filePath string, lineNums map[int]bool, pattern string, footer string) error {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	// Compile regex if given
-	var re *regexp.Regexp
-	if pattern != "" {
-		re, err = regexp.Compile("(?i)" + pattern)
-		if err != nil {
-			return fmt.Errorf("invalid regex %s: %w", pattern, err)
-		}
-	}
-
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, scanBufferSize), scanBufferSize)
-	lineNo := 0
-	var matched []int
-	bw := bufio.NewWriter(w)
-	for scanner.Scan() {
-		lineNo++
-		line := scanner.Text()
-		show := lineNums[lineNo]
-		if !show && re != nil {
-			show = re.MatchString(line)
-		}
-		if show {
-			fmt.Fprintf(bw, "%d: %s\n", lineNo, line)
-			matched = append(matched, lineNo)
-		}
-	}
-
-	if footer != "" {
-		sort.Ints(matched)
-		sections := sectionRanges(matched)
-		fmt.Fprintf(bw, "%s | showing %d | sections: %s ---\n", footer, len(matched), sections)
-	}
-
-	bw.Flush()
-	return scanner.Err()
-}
