@@ -5,6 +5,8 @@ import (
 	"os"
 )
 
+var version = "dev"
+
 func fatal(msg string) {
 	fmt.Fprintf(os.Stderr, "glance: %s\n", msg)
 	os.Exit(1)
@@ -34,6 +36,9 @@ func main() {
 	}
 
 	switch args[0] {
+	case "version", "--version", "-v":
+		fmt.Println(version)
+		return
 	case "help":
 		doHelp(args[1:])
 	case "show":
@@ -104,9 +109,6 @@ Usage:
   glance presets add <name> <regex> [desc]   Add user preset
   glance presets remove <name>               Remove user preset
 
-Config format (CSV): name,regex,description
-  errors,"(?i)error|fail",Error detection
-
 Built-in presets cannot be removed or overridden.
 `)
 			fmt.Printf("User presets are stored in %s\n", configPath())
@@ -134,6 +136,7 @@ PIPE FLAGS:
 
 SUBCOMMANDS:
   glance help [cmd]                    This help (or help for cmd)
+  glance version                       Print version
   glance show <id>                     Full stored output
   glance show <id> -l 50-80            Line range
   glance show <id> -f 'regex'          Filter stored output

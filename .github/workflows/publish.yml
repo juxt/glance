@@ -1,0 +1,55 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-wheels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build wheels
+        run: |
+          uvx go-to-wheel . \
+            --name glancecli \
+            --entry-point glance \
+            --version "${{ steps.version.outputs.version }}" \
+            --set-version-var main.version \
+            --readme README.md \
+            --description "Command output summariser with filters, built for LLMs" \
+            --author "akeboshiwind" \
+            --license MIT \
+            --url https://github.com/akeboshiwind/glance
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: dist/
+
+  publish:
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/glancecli
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

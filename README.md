@@ -2,6 +2,19 @@
 
 LLMs read every token of command output with equal attention, unlike humans who skim head/tail and scan for patterns. `glance` gives LLMs a human-like "skim" — pipe output in, get a token-efficient summary with head/tail + regex-matched lines, plus an ID to drill deeper.
 
+## Install
+
+```sh
+# Run without installing
+uvx glancecli
+
+# Install permanently
+uv tool install glancecli
+
+# Or with Go
+go install github.com/akeboshiwind/glance@latest
+```
+
 ## What it does
 
 ```
@@ -40,11 +53,11 @@ $ glance show 20260219-143025-b7c2e4f1 -a 101 2
 
 ## Design decisions
 
-- **POSIX sh, single file** — works everywhere including Alpine/busybox. No dependencies beyond standard Unix tools (`awk`, `cat`, `cp`, `date`, `mktemp`, `od`, `sed`, `stat`, `tr`, `wc`).
-- **OR semantics** — all matchers (filters + presets) OR together. Head/tail always shown. All matching is case-insensitive. This is the most useful behavior for scanning output: "show me the start, end, and anything interesting".
+- **Single static binary** — compiled Go, no runtime dependencies. Cross-compiled for Linux, macOS, and Windows (amd64 + arm64).
+- **OR semantics** — all matchers (filters + presets) OR together. Head/tail always shown. This is the most useful behavior for scanning output: "show me the start, end, and anything interesting".
 - **Persistent storage** — captures stored in `$XDG_CACHE_HOME/glance/captures/` with timestamp + hex IDs (e.g. `20260219-143022-a3f8b1c0`). Full ID required for `glance show` — use `glance list` to find IDs.
 - **No metadata files** — line count and age derived from the stored file itself (`wc -l`, `stat`).
-- **Built-in + user presets** — three hardcoded presets (errors, warnings, status) cover common patterns. User presets in `~/.config/glance/presets.conf` for project-specific needs. Both use a unified sed-style format where the first character of each line is the delimiter (e.g. `/errors/error|err|fail/Error detection`). The delimiter is auto-picked to avoid conflicts with regex content.
+- **Built-in + user presets** — three hardcoded presets (errors, warnings, status) cover common patterns. User presets stored in `~/.config/glance/presets.csv` as CSV. Use `(?i)` prefix for case-insensitive matching.
 
 ## Usage
 
@@ -65,39 +78,20 @@ See `glance help` for complete documentation. Key commands:
 | `glance clean` | Purge captures |
 | `glance presets list` | Show all presets |
 | `glance presets add <name> <re> [desc]` | Add user preset |
-| `glance presets add -d ',' <name> <re> [desc]` | Add with explicit delimiter |
 | `glance presets remove <name>` | Remove user preset |
 
-## Preset format
 
-Presets use a sed-style format where the first character of each line is the delimiter:
-
-```
-/errors/error|err|fail|fatal|panic|exception|traceback/Error detection
-/warnings/warn|warning|deprecated/Warnings
-,pathpre,src/lib|test/unit,Path matching preset
-```
-
-When adding a preset, the delimiter is auto-picked from `/ , @ # % ~ !` — the first character not present in the regex. Use `-d` to override:
-
-```
-$ glance presets add mypreset 'error|fail' 'My errors'     # auto-picks /
-$ glance presets add -d ',' pathpre 'src/lib' 'Paths'       # explicit , since regex has /
-```
-
-Preset names must be alphanumeric (plus hyphens and underscores). Comments (`#`) and blank lines are preserved in the user config file.
+Preset names must be alphanumeric (plus hyphens and underscores).
 
 ## Testing
 
 ```
-./test_glance.sh
+go test ./...
 ```
-
-116 integration tests covering core pipe behavior, filtering, output format, show subcommand, list/clean, presets management, preset format handling, regex compatibility, age formatting, and edge cases (empty input, binary data, long lines, concurrency, flag validation, delimiter exhaustion).
 
 ## Files
 
-- `glance` — the tool (~685 lines of POSIX sh)
-- `test_glance.sh` — integration test suite
-- `notes.md` — development notes
+- `main.go` — entry point and CLI
+- `*_test.go` — integration and unit tests
+- `.github/workflows/publish.yml` — PyPI release workflow
 - `README.md` — this file
