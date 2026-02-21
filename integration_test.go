@@ -552,6 +552,114 @@ func TestPresets(t *testing.T) {
 	})
 }
 
+func TestPipeStreaming(t *testing.T) {
+	t.Run("n 1 head and tail", func(t *testing.T) {
+		out, _, _ := run(t, seqInput(100), "-n", "1")
+		assertContains(t, "showing 2", out, `showing 2`)
+		assertContains(t, "has line 1", out, `1: 1`)
+		assertContains(t, "has line 100", out, `100: 100`)
+		assertContains(t, "sections", out, `sections: 1, 100`)
+	})
+
+	t.Run("n larger than input", func(t *testing.T) {
+		out, _, _ := run(t, seqInput(5), "-n", "100")
+		assertContains(t, "5 lines", out, `5 lines`)
+		assertContains(t, "showing 5", out, `showing 5`)
+		assertContains(t, "has line 1", out, `1: 1`)
+		assertContains(t, "has line 5", out, `5: 5`)
+	})
+
+	t.Run("filter match in head", func(t *testing.T) {
+		// Line "1" matches filter ^1$ and is also in head — should appear once
+		out, _, _ := run(t, seqInput(100), "-n", "5", "-f", `^1$`)
+		count := strings.Count(out, "1: 1\n")
+		if count != 1 {
+			t.Errorf("head+filter: line 1 appears %d times, want 1\noutput:\n%s", count, truncate(out, 500))
+		}
+	})
+
+	t.Run("filter match in tail", func(t *testing.T) {
+		// Line "100" matches filter ^100$ and is also in tail — should appear once
+		out, _, _ := run(t, seqInput(100), "-n", "5", "-f", `^100$`)
+		count := strings.Count(out, "100: 100\n")
+		if count != 1 {
+			t.Errorf("tail+filter: line 100 appears %d times, want 1\noutput:\n%s", count, truncate(out, 500))
+		}
+	})
+
+	t.Run("filter only middle matches", func(t *testing.T) {
+		// Filter that only matches lines in the middle (not head or tail)
+		input := seqInput(10) + "MIDDLE_MATCH\n" + seqInput(10)
+		out, _, _ := run(t, input, "-n", "3", "-f", "MIDDLE_MATCH")
+		assertContains(t, "has match", out, `11: MIDDLE_MATCH`)
+		assertContains(t, "showing 7", out, `showing 7`)
+	})
+
+	t.Run("capture file stored correctly", func(t *testing.T) {
+		env := newTestEnv(t)
+		out, _, _ := env.run(seqInput(50))
+		id := extractID(out)
+		if id == "" {
+			t.Fatal("no id")
+		}
+		// Show full output to verify capture has all lines
+		showOut, _, _ := env.run("", "show", id)
+		lines := strings.Split(strings.TrimRight(showOut, "\n"), "\n")
+		if len(lines) != 50 {
+			t.Errorf("capture has %d lines, want 50", len(lines))
+		}
+	})
+}
+
+func TestShowStreaming(t *testing.T) {
+	env := newTestEnv(t)
+	out, _, _ := env.run(seqInput(50))
+	id := extractID(out)
+	if id == "" {
+		t.Fatal("failed to extract ID")
+	}
+
+	t.Run("around beyond EOF", func(t *testing.T) {
+		out, _, _ := env.run("", "show", id, "--around", "48", "10")
+		assertContains(t, "has line 38", out, `38: 38`)
+		assertContains(t, "has line 50", out, `50: 50`)
+		// Should not crash or show lines beyond 50
+		assertNotContains(t, "no line 51", out, `51:`)
+	})
+
+	t.Run("lines range beyond EOF", func(t *testing.T) {
+		out, _, _ := env.run("", "show", id, "--lines", "45-100")
+		assertContains(t, "has line 45", out, `45: 45`)
+		assertContains(t, "has line 50", out, `50: 50`)
+		assertNotContains(t, "no line 51", out, `51:`)
+		assertContains(t, "showing 6", out, `showing 6`)
+	})
+
+	t.Run("filter only no ranges", func(t *testing.T) {
+		out, _, _ := env.run("", "show", id, "-f", `^2[0-5]$`)
+		assertContains(t, "has 20", out, `20: 20`)
+		assertContains(t, "has 25", out, `25: 25`)
+		assertNotContains(t, "no 26", out, `26: 26`)
+		assertContains(t, "showing 6", out, `showing 6`)
+	})
+
+	t.Run("around center at 1", func(t *testing.T) {
+		out, _, _ := env.run("", "show", id, "--around", "1", "2")
+		assertContains(t, "has line 1", out, `1: 1`)
+		assertContains(t, "has line 3", out, `3: 3`)
+		assertNotContains(t, "no line 0", out, `\b0:`)
+		assertContains(t, "showing 3", out, `showing 3`)
+	})
+
+	t.Run("around center beyond EOF", func(t *testing.T) {
+		out, _, _ := env.run("", "show", id, "--around", "100", "5")
+		// Center is beyond EOF, but range [95..105] should include 95-50
+		// Actually center=100 context=5 → lines 95-105, file has 50
+		// No lines should match
+		assertContains(t, "showing 0", out, `showing 0`)
+	})
+}
+
 func TestEdgeCases(t *testing.T) {
 	t.Run("unknown command", func(t *testing.T) {
 		_, stderr, _ := run(t, "", "foobar")
