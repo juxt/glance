@@ -131,7 +131,7 @@ func runShow(cfg showConfig) {
 	var re *regexp.Regexp
 	if pattern != "" {
 		var err error
-		re, err = regexp.Compile("(?i)" + pattern)
+		re, err = regexp.Compile(pattern)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "glance: invalid regex %s: %s\n", pattern, err)
 			os.Exit(1)

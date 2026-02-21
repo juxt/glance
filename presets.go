@@ -14,9 +14,9 @@ type preset struct {
 }
 
 var builtinPresets = []preset{
-	{"errors", `error|err|fail|fatal|panic|exception|traceback`, "Error detection"},
-	{"warnings", `warn|warning|deprecated`, "Warnings"},
-	{"status", `exit code|status|returned?\s+[0-9]+|HTTP\s+[45][0-9][0-9]`, "Status/exit codes"},
+	{"errors", `(?i)error|err|fail|fatal|panic|exception|traceback`, "Error detection"},
+	{"warnings", `(?i)warn|warning|deprecated`, "Warnings"},
+	{"status", `(?i)exit code|status|returned?\s+[0-9]+|HTTP\s+[45][0-9][0-9]`, "Status/exit codes"},
 }
 
 // parsePresetLine parses a sed-style line: first char is delimiter, then name/regex/desc
