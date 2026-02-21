@@ -100,15 +100,12 @@ Usage:
 			fmt.Print(`glance presets — manage filter presets
 
 Usage:
-  glance presets list                              Show all presets
-  glance presets add [-d delim] <name> <re> [desc] Add user preset
-  glance presets remove <name>                     Remove user preset
+  glance presets list                        Show all presets
+  glance presets add <name> <regex> [desc]   Add user preset
+  glance presets remove <name>               Remove user preset
 
-Config format (sed-style): first char is the delimiter, then name/regex/desc:
-  /mypreset/error|fail/My description
-
-The delimiter is auto-picked (first of / , @ # % ~ ! not in the regex).
-Use -d to override: glance presets add -d ',' mypreset 'a/b' 'desc'
+Config format (CSV): name,regex,description
+  errors,"(?i)error|fail",Error detection
 
 Built-in presets cannot be removed or overridden.
 `)
@@ -135,8 +132,6 @@ PIPE FLAGS:
   -p, --preset NAME  Named preset filter (repeatable, OR)
   --no-store         Don't store capture, no ID issued
 
-All filter matching is case-insensitive.
-
 SUBCOMMANDS:
   glance help [cmd]                    This help (or help for cmd)
   glance show <id>                     Full stored output
@@ -147,7 +142,7 @@ SUBCOMMANDS:
   glance list                          List stored captures
   glance clean                         Purge captures
   glance presets list                  Show all presets
-  glance presets add [-d D] <n> <re> [desc]  Add user preset
+  glance presets add <n> <re> [desc]   Add user preset
   glance presets remove <name>         Remove user preset
 
 BUILT-IN PRESETS:

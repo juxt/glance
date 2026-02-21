@@ -406,7 +406,7 @@ func TestListClean(t *testing.T) {
 
 		env.run("", "clean", "--all")
 
-		confPath := filepath.Join(env.configDir, "glance", "presets.conf")
+		confPath := filepath.Join(env.configDir, "glance", "presets.csv")
 		if _, err := os.Stat(confPath); err == nil {
 			t.Error("clean --all: config file should be gone")
 		}
@@ -443,62 +443,31 @@ func TestPresets(t *testing.T) {
 		assertContains(t, "error", stderr, `cannot remove built-in`)
 	})
 
-	t.Run("auto delimiter", func(t *testing.T) {
+	t.Run("csv roundtrip with slash", func(t *testing.T) {
 		env.run("", "presets", "add", "slashpre", "a/b", "Has slash")
 
-		confPath := filepath.Join(env.configDir, "glance", "presets.conf")
-		data, _ := os.ReadFile(confPath)
-		assertContains(t, "uses comma", string(data), `(?m)^,`)
-
-		// Round-trips
 		out, _, _ := env.run("a/b found\n"+seqInput(50), "-p", "slashpre")
 		assertContains(t, "preset works", out, `a/b found`)
 
 		env.run("", "presets", "remove", "slashpre")
 	})
 
-	t.Run("-d flag", func(t *testing.T) {
-		env.run("", "presets", "add", "-d", "@", "flagpre", "x/y,z", "Custom delim")
+	t.Run("csv roundtrip with comma", func(t *testing.T) {
+		env.run("", "presets", "add", "commapre", "a,b", "Has comma")
 
-		confPath := filepath.Join(env.configDir, "glance", "presets.conf")
-		data, _ := os.ReadFile(confPath)
-		assertContains(t, "uses @", string(data), `(?m)^@`)
+		out, _, _ := env.run("a,b found\n"+seqInput(50), "-p", "commapre")
+		assertContains(t, "preset works", out, `a,b found`)
 
-		out, _, _ := env.run("x/y,z here\n"+seqInput(50), "-p", "flagpre")
-		assertContains(t, "preset works", out, `x/y,z here`)
-
-		env.run("", "presets", "remove", "flagpre")
+		env.run("", "presets", "remove", "commapre")
 	})
 
-	t.Run("-d conflict", func(t *testing.T) {
-		_, stderr, _ := env.run("", "presets", "add", "-d", "/", "badpre", "a/b", "desc")
-		assertContains(t, "error", stderr, `delimiter.*appears in regex`)
-	})
+	t.Run("csv roundtrip with quotes", func(t *testing.T) {
+		env.run("", "presets", "add", "quotepre", `a"b`, "Has quote")
 
-	t.Run("delimiter exhaustion", func(t *testing.T) {
-		_, stderr, _ := env.run("", "presets", "add", "exhaustpre", "/,@#%~!", "desc")
-		assertContains(t, "error", stderr, `all candidate delimiters`)
-	})
+		out, _, _ := env.run("a\"b found\n"+seqInput(50), "-p", "quotepre")
+		assertContains(t, "preset works", out, `a"b found`)
 
-	t.Run("comments preserved", func(t *testing.T) {
-		// Fresh env for this test
-		env2 := newTestEnv(t)
-		confDir := filepath.Join(env2.configDir, "glance")
-		os.MkdirAll(confDir, 0o755)
-		confPath := filepath.Join(confDir, "presets.conf")
-		os.WriteFile(confPath, []byte("# My comment\n\n/keepme/keep/Keep preset\n"), 0o644)
-
-		env2.run("", "presets", "add", "newpre", "new", "New one")
-		data, _ := os.ReadFile(confPath)
-		assertContains(t, "comment after add", string(data), `(?m)^# My comment`)
-
-		env2.run("", "presets", "remove", "newpre")
-		data, _ = os.ReadFile(confPath)
-		assertContains(t, "comment after remove", string(data), `(?m)^# My comment`)
-
-		// keepme survived
-		out, _, _ := env2.run("keep this\n"+seqInput(50), "-p", "keepme")
-		assertContains(t, "other preset survives", out, `keep this`)
+		env.run("", "presets", "remove", "quotepre")
 	})
 
 	t.Run("re-add replaces", func(t *testing.T) {
@@ -506,7 +475,7 @@ func TestPresets(t *testing.T) {
 		env2.run("", "presets", "add", "mypre", "old_regex", "Old desc")
 		env2.run("", "presets", "add", "mypre", "new_regex", "New desc")
 
-		confPath := filepath.Join(env2.configDir, "glance", "presets.conf")
+		confPath := filepath.Join(env2.configDir, "glance", "presets.csv")
 		data, _ := os.ReadFile(confPath)
 		count := strings.Count(string(data), "mypre")
 		if count != 1 {
@@ -782,11 +751,6 @@ func TestPresetsEdgeCases(t *testing.T) {
 	t.Run("no subcommand", func(t *testing.T) {
 		_, stderr, _ := run(t, "", "presets")
 		assertContains(t, "usage", stderr, `Usage.*presets`)
-	})
-
-	t.Run("delimiter exhaustion", func(t *testing.T) {
-		_, stderr, _ := run(t, "", "presets", "add", "test_exhaust", "/,@#%~!all", "desc")
-		assertContains(t, "error", stderr, `all candidate delimiters`)
 	})
 }
 

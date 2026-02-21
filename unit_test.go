@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"reflect"
 	"testing"
 )
@@ -64,28 +65,35 @@ func TestSectionRanges(t *testing.T) {
 	}
 }
 
-func TestParsePresetLine(t *testing.T) {
+func TestScanPresetFileCSV(t *testing.T) {
 	tests := []struct {
 		name    string
-		line    string
-		want    preset
-		wantErr bool
+		content string
+		want    []preset
 	}{
-		{"valid full", "/mypreset/error|fail/My description", preset{"mypreset", "error|fail", "My description"}, false},
-		{"valid no desc", "/mypreset/error|fail", preset{"mypreset", "error|fail", ""}, false},
-		{"comma delim", ",mypreset,a/b,Has slash", preset{"mypreset", "a/b", "Has slash"}, false},
-		{"too short", "x", preset{}, true},
-		{"empty", "", preset{}, true},
+		{"basic", "mypreset,error|fail,My description\n", []preset{{"mypreset", "error|fail", "My description"}}},
+		{"no desc", "mypreset,error|fail\n", []preset{{"mypreset", "error|fail", ""}}},
+		{"quoted comma", "mypreset,\"a,b\",Has comma\n", []preset{{"mypreset", "a,b", "Has comma"}}},
+		{"quoted quotes", "mypreset,\"a\"\"b\",Has quotes\n", []preset{{"mypreset", `a"b`, "Has quotes"}}},
+		{"slash in regex", "slashpre,a/b,Has slash\n", []preset{{"slashpre", "a/b", "Has slash"}}},
+		{"multiple", "one,r1,d1\ntwo,r2,d2\n", []preset{{"one", "r1", "d1"}, {"two", "r2", "d2"}}},
+		{"empty file", "", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parsePresetLine(tt.line)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parsePresetLine(%q) error = %v, wantErr %v", tt.line, err, tt.wantErr)
-				return
+			tmp := t.TempDir()
+			path := tmp + "/presets.csv"
+			if tt.content != "" {
+				os.WriteFile(path, []byte(tt.content), 0o644)
+			} else {
+				// Don't create the file for empty case
 			}
-			if !tt.wantErr && got != tt.want {
-				t.Errorf("parsePresetLine(%q) = %+v, want %+v", tt.line, got, tt.want)
+			got, err := scanPresetFile(path)
+			if err != nil {
+				t.Fatalf("scanPresetFile error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %+v, want %+v", got, tt.want)
 			}
 		})
 	}

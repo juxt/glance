@@ -22,7 +22,7 @@ func configDir() string {
 }
 
 func configPath() string {
-	return filepath.Join(configDir(), "presets.conf")
+	return filepath.Join(configDir(), "presets.csv")
 }
 
 func capturePath(id string) string {

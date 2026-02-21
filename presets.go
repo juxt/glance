@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bufio"
+	"encoding/csv"
 	"fmt"
 	"os"
 	"strings"
@@ -17,24 +17,6 @@ var builtinPresets = []preset{
 	{"errors", `(?i)error|err|fail|fatal|panic|exception|traceback`, "Error detection"},
 	{"warnings", `(?i)warn|warning|deprecated`, "Warnings"},
 	{"status", `(?i)exit code|status|returned?\s+[0-9]+|HTTP\s+[45][0-9][0-9]`, "Status/exit codes"},
-}
-
-// parsePresetLine parses a sed-style line: first char is delimiter, then name/regex/desc
-func parsePresetLine(line string) (preset, error) {
-	if len(line) < 2 {
-		return preset{}, fmt.Errorf("preset line too short")
-	}
-	delim := string(line[0])
-	rest := line[1:]
-	parts := strings.SplitN(rest, delim, 3)
-	if len(parts) < 2 {
-		return preset{}, fmt.Errorf("invalid preset line")
-	}
-	p := preset{name: parts[0], regex: parts[1]}
-	if len(parts) >= 3 {
-		p.desc = parts[2]
-	}
-	return p, nil
 }
 
 func getBuiltinPreset(name string) (string, bool) {
@@ -55,20 +37,23 @@ func scanPresetFile(path string) ([]preset, error) {
 		return nil, err
 	}
 	defer f.Close()
+	r := csv.NewReader(f)
+	records, err := r.ReadAll()
+	if err != nil {
+		return nil, err
+	}
 	var result []preset
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" || strings.HasPrefix(line, "#") {
+	for _, rec := range records {
+		if len(rec) < 2 {
 			continue
 		}
-		p, err := parsePresetLine(line)
-		if err != nil {
-			continue
+		p := preset{name: rec[0], regex: rec[1]}
+		if len(rec) >= 3 {
+			p.desc = rec[2]
 		}
 		result = append(result, p)
 	}
-	return result, scanner.Err()
+	return result, nil
 }
 
 func getUserPreset(name string) (string, bool) {
@@ -113,6 +98,22 @@ func isValidPresetName(name string) bool {
 	return true
 }
 
+func writePresets(path string, presets []preset) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	for _, p := range presets {
+		if err := w.Write([]string{p.name, p.regex, p.desc}); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
 func doPresets(args []string) {
 	if len(args) == 0 {
 		fmt.Fprintf(os.Stderr, "Usage: glance presets <list|add|remove>\n")
@@ -135,31 +136,18 @@ func doPresets(args []string) {
 			for _, p := range userPresets {
 				fmt.Printf("  %-10s  %-50s  %s\n", p.name, p.regex, p.desc)
 			}
-		} else {
-			// Check if config file exists — might have presets
-			path := configPath()
-			if f, err := os.Open(path); err == nil {
-				f.Close()
-				// File exists but no parseable presets — still show section if file has content
-			}
 		}
 
 	case "add":
-		delim := ""
-		// Parse optional -d flag
-		if len(args) >= 2 && args[0] == "-d" {
-			delim = args[1]
-			args = args[2:]
-		}
 		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "Usage: glance presets add [-d delim] <name> <regex> [description]\n")
+			fmt.Fprintf(os.Stderr, "Usage: glance presets add <name> <regex> [description]\n")
 			os.Exit(1)
 		}
 		name := args[0]
 		regex := args[1]
 		desc := ""
 		if len(args) >= 3 {
-			desc = args[2]
+			desc = strings.Join(args[2:], " ")
 		}
 
 		if !isValidPresetName(name) {
@@ -172,62 +160,25 @@ func doPresets(args []string) {
 			os.Exit(1)
 		}
 
-		// Pick delimiter
-		if delim != "" {
-			if strings.Contains(regex, delim) {
-				fmt.Fprintf(os.Stderr, "glance: delimiter %s appears in regex, choose another\n", delim)
-				os.Exit(1)
-			}
-		} else {
-			for _, c := range []string{"/", ",", "@", "#", "%", "~", "!"} {
-				if !strings.Contains(regex, c) {
-					delim = c
-					break
-				}
-			}
-			if delim == "" {
-				fmt.Fprintf(os.Stderr, "glance: regex contains all candidate delimiters, use -d to specify one\n")
-				os.Exit(1)
-			}
-		}
-
 		if err := ensureConfigDir(); err != nil {
 			fatal(err.Error())
 		}
 
-		// Read existing config, filter out same-name entry
 		confPath := configPath()
-		var lines []string
-		if f, err := os.Open(confPath); err == nil {
-			scanner := bufio.NewScanner(f)
-			for scanner.Scan() {
-				line := scanner.Text()
-				if line == "" || strings.HasPrefix(line, "#") {
-					lines = append(lines, line)
-					continue
-				}
-				p, err := parsePresetLine(line)
-				if err != nil || p.name == name {
-					continue
-				}
-				lines = append(lines, line)
+		existing, _ := scanPresetFile(confPath)
+
+		// Filter out same-name entry
+		var kept []preset
+		for _, p := range existing {
+			if p.name != name {
+				kept = append(kept, p)
 			}
-			f.Close()
 		}
+		kept = append(kept, preset{name: name, regex: regex, desc: desc})
 
-		// Append new entry
-		newLine := fmt.Sprintf("%s%s%s%s%s%s", delim, name, delim, regex, delim, desc)
-		lines = append(lines, newLine)
-
-		// Write back
-		f, err := os.Create(confPath)
-		if err != nil {
+		if err := writePresets(confPath, kept); err != nil {
 			fatal(err.Error())
 		}
-		for _, l := range lines {
-			fmt.Fprintln(f, l)
-		}
-		f.Close()
 
 		fmt.Printf("Added preset: %s\n", name)
 
@@ -244,47 +195,30 @@ func doPresets(args []string) {
 		}
 
 		confPath := configPath()
-		f, err := os.Open(confPath)
-		if err != nil {
+		existing, err := scanPresetFile(confPath)
+		if err != nil || existing == nil {
 			fmt.Fprintf(os.Stderr, "glance: preset not found: %s\n", name)
 			os.Exit(1)
 		}
 
-		var lines []string
+		var kept []preset
 		found := false
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if line == "" || strings.HasPrefix(line, "#") {
-				lines = append(lines, line)
-				continue
-			}
-			p, err := parsePresetLine(line)
-			if err != nil {
-				lines = append(lines, line)
-				continue
-			}
+		for _, p := range existing {
 			if p.name == name {
 				found = true
 				continue
 			}
-			lines = append(lines, line)
+			kept = append(kept, p)
 		}
-		f.Close()
 
 		if !found {
 			fmt.Fprintf(os.Stderr, "glance: preset not found: %s\n", name)
 			os.Exit(1)
 		}
 
-		out, err := os.Create(confPath)
-		if err != nil {
+		if err := writePresets(confPath, kept); err != nil {
 			fatal(err.Error())
 		}
-		for _, l := range lines {
-			fmt.Fprintln(out, l)
-		}
-		out.Close()
 
 		fmt.Printf("Removed preset: %s\n", name)
 
