@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -161,15 +162,9 @@ func joinFilters(filters []string) string {
 }
 
 func parsePositiveInt(s string) int {
-	if s == "" || s == "0" {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
 		return 0
-	}
-	n := 0
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return 0
-		}
-		n = n*10 + int(c-'0')
 	}
 	return n
 }
