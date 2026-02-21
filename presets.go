@@ -46,42 +46,7 @@ func getBuiltinPreset(name string) (string, bool) {
 	return "", false
 }
 
-func getUserPreset(name string) (string, bool) {
-	path := configPath()
-	f, err := os.Open(path)
-	if err != nil {
-		return "", false
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		p, err := parsePresetLine(line)
-		if err != nil {
-			continue
-		}
-		if p.name == name {
-			return p.regex, true
-		}
-	}
-	return "", false
-}
-
-func resolvePreset(name string) (string, error) {
-	if r, ok := getBuiltinPreset(name); ok {
-		return r, nil
-	}
-	if r, ok := getUserPreset(name); ok {
-		return r, nil
-	}
-	return "", fmt.Errorf("glance: unknown preset: %s", name)
-}
-
-func readUserPresets() ([]preset, error) {
-	path := configPath()
+func scanPresetFile(path string) ([]preset, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -104,6 +69,33 @@ func readUserPresets() ([]preset, error) {
 		result = append(result, p)
 	}
 	return result, scanner.Err()
+}
+
+func getUserPreset(name string) (string, bool) {
+	presets, err := scanPresetFile(configPath())
+	if err != nil {
+		return "", false
+	}
+	for _, p := range presets {
+		if p.name == name {
+			return p.regex, true
+		}
+	}
+	return "", false
+}
+
+func resolvePreset(name string) (string, error) {
+	if r, ok := getBuiltinPreset(name); ok {
+		return r, nil
+	}
+	if r, ok := getUserPreset(name); ok {
+		return r, nil
+	}
+	return "", fmt.Errorf("glance: unknown preset: %s", name)
+}
+
+func readUserPresets() ([]preset, error) {
+	return scanPresetFile(configPath())
 }
 
 func isValidPresetName(name string) bool {
