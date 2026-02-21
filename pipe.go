@@ -151,7 +151,7 @@ func doPipe(args []string) {
 	}
 
 	if err := printMatchedLines(os.Stdout, tmpfile.Name(), lineNums, pattern, footer); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "glance: %s\n", err)
 		os.Exit(1)
 	}
 }
@@ -182,5 +182,7 @@ func copyFile(src, dst string) {
 		fatal(err.Error())
 	}
 	defer out.Close()
-	io.Copy(out, in)
+	if _, err := io.Copy(out, in); err != nil {
+		fatal(err.Error())
+	}
 }

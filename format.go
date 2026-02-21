@@ -94,7 +94,7 @@ func printMatchedLines(w io.Writer, filePath string, lineNums map[int]bool, patt
 	if pattern != "" {
 		re, err = regexp.Compile("(?i)" + pattern)
 		if err != nil {
-			return fmt.Errorf("nonterminated character class or invalid regex: %s", pattern)
+			return fmt.Errorf("invalid regex %s: %w", pattern, err)
 		}
 	}
 

@@ -129,7 +129,7 @@ func doShow(args []string) {
 	footer := fmt.Sprintf("--- glance show %s | %s", id, pluralLines(total))
 
 	if err := printMatchedLines(os.Stdout, path, lineNums, pattern, footer); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "glance: %s\n", err)
 		os.Exit(1)
 	}
 }
