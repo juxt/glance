@@ -73,22 +73,6 @@ func printMatchedLines(w io.Writer, filePath string, lineNums map[int]bool, patt
 	}
 	defer f.Close()
 
-	// Count total lines
-	total := 0
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, scanBufferSize), scanBufferSize)
-	for scanner.Scan() {
-		total++
-	}
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-
-	width := len(fmt.Sprintf("%d", total))
-	if width == 0 {
-		width = 1
-	}
-
 	// Compile regex if given
 	var re *regexp.Regexp
 	if pattern != "" {
@@ -98,9 +82,7 @@ func printMatchedLines(w io.Writer, filePath string, lineNums map[int]bool, patt
 		}
 	}
 
-	// Second pass: print matching lines
-	f.Seek(0, 0)
-	scanner = bufio.NewScanner(f)
+	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, scanBufferSize), scanBufferSize)
 	lineNo := 0
 	var matched []int
@@ -113,7 +95,7 @@ func printMatchedLines(w io.Writer, filePath string, lineNums map[int]bool, patt
 			show = re.MatchString(line)
 		}
 		if show {
-			fmt.Fprintf(bw, "%*d: %s\n", width, lineNo, line)
+			fmt.Fprintf(bw, "%d: %s\n", lineNo, line)
 			matched = append(matched, lineNo)
 		}
 	}
