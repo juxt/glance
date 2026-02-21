@@ -9,30 +9,93 @@ import (
 
 const defaultAroundContext = 5
 
-func doShow(args []string) {
+type aroundSpec struct {
+	center  int
+	context int
+}
+
+type showConfig struct {
+	id      string
+	ranges  [][2]int
+	around  []aroundSpec
+	filters []string
+}
+
+func parseShowArgs(args []string) (showConfig, error) {
 	if len(args) < 1 {
-		fmt.Fprintf(os.Stderr, "Usage: glance show <id> [--lines N-M] [--filter regex] [--around N C]\n")
-		os.Exit(1)
+		return showConfig{}, fmt.Errorf("usage: glance show <id> [--lines N-M] [--filter regex] [--around N C]")
 	}
 
 	id := args[0]
 	args = args[1:]
 
-	// Validate ID: no slashes, no .., not empty
 	if id == "" || strings.Contains(id, "/") || strings.Contains(id, "..") {
-		fmt.Fprintf(os.Stderr, "glance: invalid capture ID: %s\n", id)
-		os.Exit(1)
+		return showConfig{}, fmt.Errorf("invalid capture ID: %s", id)
 	}
 
-	path := capturePath(id)
+	cfg := showConfig{id: id}
+
+	i := 0
+	for i < len(args) {
+		if parseFilter(args, &i, &cfg.filters) {
+			continue
+		}
+		switch args[i] {
+		case "-l", "--lines":
+			if i+1 >= len(args) {
+				return cfg, fmt.Errorf("invalid range, must be N-M")
+			}
+			start, end := parseRange(args[i+1])
+			if start <= 0 || end <= 0 {
+				return cfg, fmt.Errorf("invalid range, must be N-M")
+			}
+			cfg.ranges = append(cfg.ranges, [2]int{start, end})
+			i += 2
+		case "-a", "--around":
+			if i+1 >= len(args) {
+				return cfg, fmt.Errorf("--around center must be a positive integer")
+			}
+			center := parsePositiveInt(args[i+1])
+			if center <= 0 {
+				return cfg, fmt.Errorf("--around center must be a positive integer")
+			}
+			ctx := defaultAroundContext
+			if i+2 < len(args) && args[i+2] != "" && args[i+2][0] != '-' {
+				ctx = parsePositiveInt(args[i+2])
+				if ctx <= 0 {
+					return cfg, fmt.Errorf("--around context must be a positive integer")
+				}
+				i += 3
+			} else {
+				i += 2
+			}
+			cfg.around = append(cfg.around, aroundSpec{center: center, context: ctx})
+		default:
+			return cfg, fmt.Errorf("unknown flag: %s", args[i])
+		}
+	}
+	return cfg, nil
+}
+
+func doShow(args []string) {
+	cfg, err := parseShowArgs(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "glance show: %s\n", err)
+		os.Exit(1)
+	}
+	runShow(cfg)
+}
+
+func runShow(cfg showConfig) {
+	path := capturePath(cfg.id)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "glance: capture not found: %s\n", id)
+		fmt.Fprintf(os.Stderr, "glance: capture not found: %s\n", cfg.id)
 		fmt.Fprintf(os.Stderr, "Use \"glance list\" to see stored captures.\n")
 		os.Exit(1)
 	}
 
 	// No flags → dump full output
-	if len(args) == 0 {
+	if len(cfg.ranges) == 0 && len(cfg.around) == 0 && len(cfg.filters) == 0 {
 		f, err := os.Open(path)
 		if err != nil {
 			fatal(err.Error())
@@ -42,75 +105,35 @@ func doShow(args []string) {
 		return
 	}
 
-	// Count total lines
 	total := countLines(path)
-
 	lineNums := make(map[int]bool)
-	var filters []string
 
-	i := 0
-	for i < len(args) {
-		if parseFilter(args, &i, &filters) {
-			continue
+	for _, r := range cfg.ranges {
+		end := r[1]
+		if end > total {
+			end = total
 		}
-		switch args[i] {
-		case "-l", "--lines":
-			if i+1 >= len(args) {
-				fmt.Fprintf(os.Stderr, "glance show: invalid range, must be N-M\n")
-				os.Exit(1)
-			}
-			start, end := parseRange(args[i+1])
-			if start <= 0 || end <= 0 {
-				fmt.Fprintf(os.Stderr, "glance show: invalid range, must be N-M\n")
-				os.Exit(1)
-			}
-			if end > total {
-				end = total
-			}
-			for j := start; j <= end; j++ {
-				lineNums[j] = true
-			}
-			i += 2
-		case "-a", "--around":
-			if i+1 >= len(args) {
-				fmt.Fprintf(os.Stderr, "glance show: --around center must be a positive integer\n")
-				os.Exit(1)
-			}
-			center := parsePositiveInt(args[i+1])
-			if center <= 0 {
-				fmt.Fprintf(os.Stderr, "glance show: --around center must be a positive integer\n")
-				os.Exit(1)
-			}
-			ctx := defaultAroundContext
-			if i+2 < len(args) && args[i+2] != "" && args[i+2][0] != '-' {
-				ctx = parsePositiveInt(args[i+2])
-				if ctx <= 0 {
-					fmt.Fprintf(os.Stderr, "glance show: --around context must be a positive integer\n")
-					os.Exit(1)
-				}
-				i += 3
-			} else {
-				i += 2
-			}
-			from := center - ctx
-			if from < 1 {
-				from = 1
-			}
-			to := center + ctx
-			if to > total {
-				to = total
-			}
-			for j := from; j <= to; j++ {
-				lineNums[j] = true
-			}
-		default:
-			fmt.Fprintf(os.Stderr, "glance show: unknown flag: %s\n", args[i])
-			os.Exit(1)
+		for j := r[0]; j <= end; j++ {
+			lineNums[j] = true
 		}
 	}
 
-	pattern := joinFilters(filters)
-	footer := fmt.Sprintf("--- glance show %s | %s", id, pluralLines(total))
+	for _, a := range cfg.around {
+		from := a.center - a.context
+		if from < 1 {
+			from = 1
+		}
+		to := a.center + a.context
+		if to > total {
+			to = total
+		}
+		for j := from; j <= to; j++ {
+			lineNums[j] = true
+		}
+	}
+
+	pattern := joinFilters(cfg.filters)
+	footer := fmt.Sprintf("--- glance show %s | %s", cfg.id, pluralLines(total))
 
 	if err := printMatchedLines(os.Stdout, path, lineNums, pattern, footer); err != nil {
 		fmt.Fprintf(os.Stderr, "glance: %s\n", err)

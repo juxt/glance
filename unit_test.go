@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -110,6 +111,116 @@ func TestIsValidPresetName(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("isValidPresetName(%q) = %v, want %v", tt.name, got, tt.want)
 		}
+	}
+}
+
+func TestParsePipeArgs(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want pipeConfig
+	}{
+		{"defaults", nil, pipeConfig{n: defaultHeadTail}},
+		{"custom n", []string{"-n", "5"}, pipeConfig{n: 5}},
+		{"long head", []string{"--head", "3"}, pipeConfig{n: 3}},
+		{"long lines", []string{"--lines", "7"}, pipeConfig{n: 7}},
+		{"no store", []string{"--no-store"}, pipeConfig{n: defaultHeadTail, noStore: true}},
+		{"filter", []string{"-f", "error"}, pipeConfig{n: defaultHeadTail, filters: []string{"error"}}},
+		{"multi filter", []string{"-f", "a", "-f", "b"}, pipeConfig{n: defaultHeadTail, filters: []string{"a", "b"}}},
+		{"combined", []string{"-n", "3", "--no-store", "-f", "x"}, pipeConfig{n: 3, noStore: true, filters: []string{"x"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parsePipeArgs(tt.args)
+			if err != nil {
+				t.Fatalf("parsePipeArgs(%v) error: %v", tt.args, err)
+			}
+			if got.n != tt.want.n {
+				t.Errorf("n = %d, want %d", got.n, tt.want.n)
+			}
+			if got.noStore != tt.want.noStore {
+				t.Errorf("noStore = %v, want %v", got.noStore, tt.want.noStore)
+			}
+			if !reflect.DeepEqual(got.filters, tt.want.filters) {
+				t.Errorf("filters = %v, want %v", got.filters, tt.want.filters)
+			}
+		})
+	}
+}
+
+func TestParsePipeArgsErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"missing n value", []string{"-n"}},
+		{"invalid n", []string{"-n", "abc"}},
+		{"zero n", []string{"-n", "0"}},
+		{"unknown flag", []string{"--bogus"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parsePipeArgs(tt.args)
+			if err == nil {
+				t.Errorf("parsePipeArgs(%v) expected error", tt.args)
+			}
+		})
+	}
+}
+
+func TestParseShowArgs(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want showConfig
+	}{
+		{"id only", []string{"myid"}, showConfig{id: "myid"}},
+		{"with lines", []string{"myid", "-l", "5-10"}, showConfig{id: "myid", ranges: [][2]int{{5, 10}}}},
+		{"with filter", []string{"myid", "-f", "err"}, showConfig{id: "myid", filters: []string{"err"}}},
+		{"with around", []string{"myid", "-a", "25", "3"}, showConfig{id: "myid", around: []aroundSpec{{center: 25, context: 3}}}},
+		{"around default ctx", []string{"myid", "-a", "25"}, showConfig{id: "myid", around: []aroundSpec{{center: 25, context: defaultAroundContext}}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseShowArgs(tt.args)
+			if err != nil {
+				t.Fatalf("parseShowArgs(%v) error: %v", tt.args, err)
+			}
+			if got.id != tt.want.id {
+				t.Errorf("id = %q, want %q", got.id, tt.want.id)
+			}
+			if !reflect.DeepEqual(got.ranges, tt.want.ranges) {
+				t.Errorf("ranges = %v, want %v", got.ranges, tt.want.ranges)
+			}
+			if !reflect.DeepEqual(got.filters, tt.want.filters) {
+				t.Errorf("filters = %v, want %v", got.filters, tt.want.filters)
+			}
+			if !reflect.DeepEqual(got.around, tt.want.around) {
+				t.Errorf("around = %v, want %v", got.around, tt.want.around)
+			}
+		})
+	}
+}
+
+func TestParseShowArgsErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"no args", nil},
+		{"invalid id slash", []string{"foo/bar"}},
+		{"invalid id dotdot", []string{"foo..bar"}},
+		{"invalid range", []string{"myid", "-l", "abc"}},
+		{"unknown flag", []string{"myid", "--bogus"}},
+		{"around bad center", []string{"myid", "-a", "abc"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseShowArgs(tt.args)
+			if err == nil {
+				t.Errorf("parseShowArgs(%v) expected error", tt.args)
+			}
+		})
 	}
 }
 

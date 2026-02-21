@@ -21,39 +21,54 @@ func genID() string {
 
 const defaultHeadTail = 10
 
-func doPipe(args []string) {
-	n := defaultHeadTail
-	var filters []string
-	noStore := false
+type pipeConfig struct {
+	n       int
+	filters []string
+	noStore bool
+}
+
+func parsePipeArgs(args []string) (pipeConfig, error) {
+	cfg := pipeConfig{n: defaultHeadTail}
 
 	i := 0
 	for i < len(args) {
-		if parseFilter(args, &i, &filters) {
+		if parseFilter(args, &i, &cfg.filters) {
 			continue
 		}
 		switch args[i] {
 		case "-n", "--lines", "--head":
 			if i+1 >= len(args) {
-				fmt.Fprintf(os.Stderr, "glance: -n must be a positive integer\n")
-				os.Exit(1)
+				return cfg, fmt.Errorf("-n must be a positive integer")
 			}
 			v := parsePositiveInt(args[i+1])
 			if v <= 0 {
-				fmt.Fprintf(os.Stderr, "glance: -n must be a positive integer\n")
-				os.Exit(1)
+				return cfg, fmt.Errorf("-n must be a positive integer")
 			}
-			n = v
+			cfg.n = v
 			i += 2
 		case "--no-store":
-			noStore = true
+			cfg.noStore = true
 			i++
 		default:
-			fmt.Fprintf(os.Stderr, "glance: unknown flag: %s\n", args[i])
-			fmt.Fprintf(os.Stderr, "Try: glance help\n")
-			os.Exit(1)
+			return cfg, fmt.Errorf("unknown flag: %s", args[i])
 		}
 	}
+	return cfg, nil
+}
 
+func doPipe(args []string) {
+	cfg, err := parsePipeArgs(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "glance: %s\n", err)
+		if strings.Contains(err.Error(), "unknown flag") {
+			fmt.Fprintf(os.Stderr, "Try: glance help\n")
+		}
+		os.Exit(1)
+	}
+	runPipe(cfg)
+}
+
+func runPipe(cfg pipeConfig) {
 	// Buffer stdin to temp file
 	tmpfile, err := os.CreateTemp("", "glance-*")
 	if err != nil {
@@ -87,7 +102,7 @@ func doPipe(args []string) {
 
 	// Store capture
 	captureID := ""
-	if !noStore {
+	if !cfg.noStore {
 		if err := ensureCacheDir(); err != nil {
 			fatal(err.Error())
 		}
@@ -106,6 +121,7 @@ func doPipe(args []string) {
 	}
 
 	// Calculate head/tail
+	n := cfg.n
 	headEnd := n
 	tailStart := total - n + 1
 	if total <= n*2 {
@@ -124,7 +140,7 @@ func doPipe(args []string) {
 	}
 
 	// Build filter pattern
-	pattern := joinFilters(filters)
+	pattern := joinFilters(cfg.filters)
 
 	// Build footer
 	var footer string
