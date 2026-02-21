@@ -32,14 +32,11 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// run executes glance with stdin and args, returning stdout, stderr, and exit code.
-func run(t *testing.T, stdin string, args ...string) (string, string, int) {
+// execGlance runs the glance binary with the given env dirs, stdin, and args.
+func execGlance(t *testing.T, cacheDir, configDir, stdin string, args ...string) (string, string, int) {
 	t.Helper()
 	cmd := exec.Command(glanceBin, args...)
 	cmd.Stdin = strings.NewReader(stdin)
-	// Each test gets isolated cache/config
-	cacheDir := t.TempDir()
-	configDir := t.TempDir()
 	cmd.Env = append(os.Environ(),
 		"XDG_CACHE_HOME="+cacheDir,
 		"XDG_CONFIG_HOME="+configDir,
@@ -60,7 +57,13 @@ func run(t *testing.T, stdin string, args ...string) (string, string, int) {
 	return stdout.String(), stderr.String(), exitCode
 }
 
-// runWithDirs is like run but lets caller control cache/config dirs across calls.
+// run executes glance with fresh isolated dirs.
+func run(t *testing.T, stdin string, args ...string) (string, string, int) {
+	t.Helper()
+	return execGlance(t, t.TempDir(), t.TempDir(), stdin, args...)
+}
+
+// testEnv lets caller control cache/config dirs across calls.
 type testEnv struct {
 	t         *testing.T
 	cacheDir  string
@@ -77,26 +80,7 @@ func newTestEnv(t *testing.T) *testEnv {
 
 func (e *testEnv) run(stdin string, args ...string) (string, string, int) {
 	e.t.Helper()
-	cmd := exec.Command(glanceBin, args...)
-	cmd.Stdin = strings.NewReader(stdin)
-	cmd.Env = append(os.Environ(),
-		"XDG_CACHE_HOME="+e.cacheDir,
-		"XDG_CONFIG_HOME="+e.configDir,
-	)
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	exitCode := 0
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			e.t.Fatalf("exec error: %v", err)
-		}
-	}
-	return stdout.String(), stderr.String(), exitCode
+	return execGlance(e.t, e.cacheDir, e.configDir, stdin, args...)
 }
 
 func extractID(output string) string {
