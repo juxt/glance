@@ -1,7 +1,7 @@
 # glance — LLM-optimized output summarizer
 
 [![PyPI](https://img.shields.io/pypi/v/glancecli?label=pypi)](https://pypi.org/project/glancecli/)
-[![Go tests](https://github.com/Akeboshiwind/glance/actions/workflows/test.yml/badge.svg)](https://github.com/Akeboshiwind/glance/actions/workflows/test.yml)
+[![Go tests](https://github.com/juxt/glance/actions/workflows/test.yml/badge.svg)](https://github.com/juxt/glance/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 LLMs read every token of command output with equal attention, unlike humans who skim head/tail and scan for patterns. `glance` gives LLMs a human-like "skim" — pipe output in, get a token-efficient summary with head/tail + regex-matched lines, plus an ID to drill deeper.
@@ -16,12 +16,12 @@ uv tool install glancecli
 uvx --from glancecli glance
 
 # Or with Go
-go install github.com/akeboshiwind/glance@latest
+go install github.com/juxt/glance@latest
 ```
 
 Claude Code plugin:
 ```
-/plugin marketplace add akeboshiwind/glance
+/plugin marketplace add juxt/glance
 /plugin install glance
 ```
 

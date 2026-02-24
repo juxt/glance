@@ -29,9 +29,9 @@ jobs:
             --set-version-var main.version \
             --readme README.md \
             --description "Command output summariser with filters, built for LLMs" \
-            --author "akeboshiwind" \
+            --author "juxt" \
             --license MIT \
-            --url https://github.com/akeboshiwind/glance
+            --url https://github.com/juxt/glance
 
       - uses: actions/upload-artifact@v4
         with:

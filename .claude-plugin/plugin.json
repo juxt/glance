@@ -2,7 +2,7 @@
   "name": "glance",
   "version": "0.1.0",
   "description": "Pipe long command output through glance for token-efficient summaries",
-  "author": { "name": "akeboshiwind" },
-  "repository": "https://github.com/akeboshiwind/glance",
+  "author": { "name": "juxt" },
+  "repository": "https://github.com/juxt/glance",
   "license": "MIT"
 }
